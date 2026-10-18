@@ -5,9 +5,10 @@ export interface TouchInputState {
   moveZ: number;
   lookDx: number;
   lookDy: number;
-  breakPressed: boolean;
-  placePressed: boolean;
-  jumpPressed: boolean;
+  breakHeld: boolean;
+  placeHeld: boolean;
+  jumpHeld: boolean;
+  downHeld: boolean;
 }
 
 export function isMobileDevice(): boolean {
@@ -22,9 +23,7 @@ export class TouchControls {
   private moveZ = 0;
   private lookDx = 0;
   private lookDy = 0;
-  private breakPressed = false;
-  private placePressed = false;
-  private jumpPressed = false;
+  private held = { break: false, place: false, jump: false, down: false };
 
   private joystickTouchId: number | null = null;
   private joystickOrigin = { x: 0, y: 0 };
@@ -33,41 +32,65 @@ export class TouchControls {
 
   private joystickEl: HTMLElement;
   private stickEl: HTMLElement;
-  private readonly maxRadius = 50;
+  private flying = false;
+  private readonly maxRadius = 52;
 
-  constructor(
-    private container: HTMLElement,
-    onBlockSelect: (index: number) => void,
-  ) {
+  constructor(private container: HTMLElement, onFlyToggle: () => void) {
     this.joystickEl = document.getElementById('joystick')!;
     this.stickEl = document.getElementById('joystick-stick')!;
 
-    document.getElementById('btn-break')!.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      this.breakPressed = true;
-    });
-    document.getElementById('btn-place')!.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      this.placePressed = true;
-    });
-    document.getElementById('btn-jump')!.addEventListener('touchstart', (e) => {
-      e.preventDefault();
-      this.jumpPressed = true;
-    });
-
-    const hotbar = document.getElementById('hotbar')!;
-    hotbar.querySelectorAll('.hotbar-slot').forEach((slot, i) => {
-      slot.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        onBlockSelect(i);
-      });
-    });
+    this.bindButton('btn-break', 'break');
+    this.bindButton('btn-place', 'place');
+    this.bindButton('btn-jump', 'jump');
+    this.bindButton('btn-down', 'down');
+    this.bindTap('btn-fly', onFlyToggle);
 
     this.container.addEventListener('touchstart', (e) => this.onTouchStart(e), { passive: false });
     this.container.addEventListener('touchmove', (e) => this.onTouchMove(e), { passive: false });
     this.container.addEventListener('touchend', (e) => this.onTouchEnd(e));
     this.container.addEventListener('touchcancel', (e) => this.onTouchEnd(e));
+  }
+
+  private bindButton(id: string, key: keyof typeof this.held): void {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const press = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.held[key] = true;
+      el.classList.add('active');
+    };
+    const release = (e: Event) => {
+      e.preventDefault();
+      this.held[key] = false;
+      el.classList.remove('active');
+    };
+    el.addEventListener('pointerdown', press);
+    el.addEventListener('pointerup', release);
+    el.addEventListener('pointercancel', release);
+    el.addEventListener('pointerleave', release);
+  }
+
+  private bindTap(id: string, fn: () => void): void {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      fn();
+    });
+  }
+
+  setFlying(flying: boolean): void {
+    this.flying = flying;
+    const flyBtn = document.getElementById('btn-fly');
+    flyBtn?.classList.toggle('active', flying);
+    const downBtn = document.getElementById('btn-down');
+    downBtn?.classList.toggle('hidden', !flying);
+  }
+
+  get isFlying(): boolean {
+    return this.flying;
   }
 
   private isJoystickZone(x: number, y: number): boolean {
@@ -117,7 +140,7 @@ export class TouchControls {
       dx = (dx / dist) * this.maxRadius;
       dy = (dy / dist) * this.maxRadius;
     }
-    this.stickEl.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    this.stickEl.style.transform = `translate(${dx}px, ${dy}px)`;
     this.moveX = dx / this.maxRadius;
     this.moveZ = dy / this.maxRadius;
   }
@@ -129,7 +152,7 @@ export class TouchControls {
         this.moveX = 0;
         this.moveZ = 0;
         this.joystickEl.classList.remove('active');
-        this.stickEl.style.transform = 'translate(-50%, -50%)';
+        this.stickEl.style.transform = 'translate(0, 0)';
       }
       if (touch.identifier === this.lookTouchId) {
         this.lookTouchId = null;
@@ -143,15 +166,13 @@ export class TouchControls {
       moveZ: this.moveZ,
       lookDx: this.lookDx,
       lookDy: this.lookDy,
-      breakPressed: this.breakPressed,
-      placePressed: this.placePressed,
-      jumpPressed: this.jumpPressed,
+      breakHeld: this.held.break,
+      placeHeld: this.held.place,
+      jumpHeld: this.held.jump,
+      downHeld: this.held.down,
     };
     this.lookDx = 0;
     this.lookDy = 0;
-    this.breakPressed = false;
-    this.placePressed = false;
-    this.jumpPressed = false;
     return state;
   }
 }

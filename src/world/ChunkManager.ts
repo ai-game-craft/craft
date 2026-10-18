@@ -1,6 +1,7 @@
-import { BlockId, CHUNK_SIZE, isSolid, isTransparent } from './BlockRegistry';
+import { BlockId, CHUNK_HEIGHT, CHUNK_SIZE, isSolid, isTransparent } from './BlockRegistry';
 import { Chunk, chunkKey, worldToLocal } from './Chunk';
 import { WorldGenerator } from './WorldGenerator';
+import { CONFIG } from '../config';
 import type { BlockUpdateMessage } from '../net/Protocol';
 import { NetworkClient } from '../net/NetworkClient';
 
@@ -11,8 +12,10 @@ export class ChunkManager {
   private generator: WorldGenerator;
   private network: NetworkClient;
   private changeListeners: BlockChangeListener[] = [];
+  seed: number;
 
-  constructor(seed?: number) {
+  constructor(seed = CONFIG.world.seed) {
+    this.seed = seed;
     this.generator = new WorldGenerator(seed);
     this.network = new NetworkClient();
   }
@@ -36,7 +39,7 @@ export class ChunkManager {
   }
 
   getBlock(wx: number, wy: number, wz: number): number {
-    if (wy < 0 || wy >= 128) return BlockId.Air;
+    if (wy < 0 || wy >= CHUNK_HEIGHT) return BlockId.Air;
     const { lx, ly, lz, cx, cz } = worldToLocal(wx, wy, wz);
     const chunk = this.chunks.get(chunkKey(cx, cz));
     if (!chunk) return BlockId.Air;
@@ -45,7 +48,7 @@ export class ChunkManager {
 
   /** Unified block change entry point — single-player writes locally; multiplayer can also send via network. */
   applyBlockChange(wx: number, wy: number, wz: number, blockId: number, playerId = 'local'): boolean {
-    if (wy < 0 || wy >= 128) return false;
+    if (wy < 0 || wy >= CHUNK_HEIGHT) return false;
     const { lx, ly, lz, cx, cz } = worldToLocal(wx, wy, wz);
     const chunk = this.getOrCreateChunk(cx, cz);
     const prev = chunk.getBlock(lx, ly, lz);
@@ -77,11 +80,15 @@ export class ChunkManager {
     return isSolid(this.getBlock(wx, wy, wz));
   }
 
-  /** Face visibility check for mesh building */
+  /**
+   * Face visibility check for mesh building.
+   * A face is drawn when the neighbour is air, or when the neighbour is
+   * see-through and made of a different block (stone behind glass, for example).
+   */
   shouldRenderFace(wx: number, wy: number, wz: number, blockId: number): boolean {
     const neighbor = this.getBlock(wx, wy, wz);
     if (neighbor === BlockId.Air) return true;
-    return isTransparent(blockId) && !isTransparent(neighbor);
+    return isTransparent(neighbor) && neighbor !== blockId;
   }
 
   getLoadedChunks(): Chunk[] {
@@ -130,5 +137,26 @@ export class ChunkManager {
 
   getAllChunks(): Chunk[] {
     return [...this.chunks.values()];
+  }
+
+  /** Forget every loaded chunk — used when starting a brand new world. */
+  reset(seed: number): void {
+    this.chunks.clear();
+    this.seed = seed;
+    this.generator = new WorldGenerator(seed);
+  }
+
+  /** Terrain-only surface height (ignores player edits). */
+  heightAt(wx: number, wz: number): number {
+    return this.generator.heightAt(wx, wz);
+  }
+
+  /** Highest non-air block in a column of the *loaded* world, or -1 if the chunk isn't loaded. */
+  topSolidY(wx: number, wz: number): number {
+    for (let y = CHUNK_HEIGHT - 1; y >= 0; y--) {
+      const id = this.getBlock(wx, y, wz);
+      if (id !== BlockId.Air && id !== BlockId.Water) return y;
+    }
+    return -1;
   }
 }

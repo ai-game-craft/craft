@@ -1,154 +1,333 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <title>Rafter Voxel Sandbox</title>
+    <meta name="theme-color" content="#0f172a" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' fill='%235fae4a'/%3E%3Crect y='6' width='16' height='10' fill='%238a6236'/%3E%3C/svg%3E" />
+    <title>CRAFT — Voxel Sandbox</title>
     <style>
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body {
-        width: 100%;
-        height: 100%;
-        height: 100dvh;
-        overflow: hidden;
-        background: #1a1a2e;
-        font-family: system-ui, sans-serif;
+        width: 100%; height: 100%; height: 100dvh;
+        overflow: hidden; background: #0f172a;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+        color: #e2e8f0;
         touch-action: none;
         -webkit-touch-callout: none;
-        -webkit-user-select: none;
-        user-select: none;
+        -webkit-user-select: none; user-select: none;
+        -webkit-tap-highlight-color: transparent;
       }
+      .hidden { display: none !important; }
+
       #game {
-        position: fixed;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-        display: block;
-        cursor: crosshair;
-        touch-action: none;
+        position: fixed; inset: 0; width: 100%; height: 100%;
+        display: block; cursor: crosshair; touch-action: none;
       }
-      #overlay {
-        position: fixed; inset: 0; display: flex; flex-direction: column;
-        align-items: center; justify-content: center; background: rgba(0,0,0,0.75);
-        color: #fff; z-index: 10; user-select: none;
-        padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+
+      /* ---------- Screens (start / pause / help) ---------- */
+      .screen {
+        position: fixed; inset: 0; z-index: 20;
+        display: flex; align-items: center; justify-content: center;
+        background: radial-gradient(circle at 50% 0%, #1e2a4a 0%, #0b1120 60%, #06090f 100%);
+        padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+        overflow-y: auto;
       }
-      #overlay.hidden { display: none; }
-      #overlay h1 { font-size: clamp(1.5rem, 5vw, 2.5rem); margin-bottom: 0.5rem; text-align: center; }
-      #overlay p { opacity: 0.8; margin-bottom: 1.5rem; text-align: center; padding: 0 1rem; font-size: clamp(0.85rem, 3vw, 1rem); max-width: 90vw; }
-      #overlay button {
-        padding: 12px 32px; font-size: 1.1rem; cursor: pointer;
-        background: #4ade80; border: none; border-radius: 8px; color: #111;
+      .screen.dim { background: rgba(6, 9, 15, 0.82); backdrop-filter: blur(6px); }
+      .panel {
+        width: min(560px, 100%);
+        background: rgba(17, 24, 39, 0.82);
+        border: 1px solid rgba(148, 163, 184, 0.18);
+        border-radius: 20px;
+        padding: clamp(20px, 4vw, 34px);
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+        text-align: center;
       }
-      #overlay button:hover { background: #22c55e; }
+      .panel h1 {
+        font-size: clamp(2.2rem, 9vw, 3.4rem);
+        letter-spacing: 0.18em;
+        font-weight: 800;
+        background: linear-gradient(180deg, #a7f3d0, #4ade80 60%, #22c55e);
+        -webkit-background-clip: text; background-clip: text;
+        color: transparent;
+        margin-bottom: 4px;
+      }
+      .panel h2 { font-size: clamp(1.4rem, 5vw, 2rem); margin-bottom: 18px; }
+      .sub { color: #94a3b8; font-size: clamp(0.82rem, 3.2vw, 0.95rem); margin-bottom: 22px; line-height: 1.5; }
+
+      button {
+        font: inherit; cursor: pointer; border: none; border-radius: 12px;
+        padding: 13px 22px; font-weight: 700; letter-spacing: 0.02em;
+        transition: transform 0.08s ease, filter 0.15s ease;
+      }
+      button:active { transform: scale(0.97); }
+      button.primary {
+        background: linear-gradient(180deg, #5eead4, #22c55e);
+        color: #04220f; width: 100%; font-size: 1.05rem;
+      }
+      button.primary:hover { filter: brightness(1.08); }
+      button.ghost {
+        background: rgba(148, 163, 184, 0.14);
+        color: #cbd5e1; width: 100%; margin-top: 10px; font-size: 0.92rem;
+      }
+      button.ghost:hover { background: rgba(148, 163, 184, 0.24); }
+
+      .seed-row { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+      .seed-row label { font-size: 0.8rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.1em; }
+      .seed-row input {
+        flex: 1; min-width: 0; font: inherit; color: #f1f5f9;
+        background: rgba(2, 6, 23, 0.7); border: 1px solid rgba(148, 163, 184, 0.25);
+        border-radius: 10px; padding: 11px 14px; text-align: center; letter-spacing: 0.08em;
+      }
+      .seed-row input:focus { outline: 2px solid #4ade80; outline-offset: 1px; }
+      .note { font-size: 0.78rem; color: #64748b; margin-top: 14px; min-height: 1em; }
+
+      .keys {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 8px 14px; margin-top: 22px; text-align: left;
+        font-size: 0.78rem; color: #94a3b8;
+      }
+      .keys b { color: #e2e8f0; font-weight: 600; }
+
+      /* ---------- HUD ---------- */
       #hud {
-        position: fixed; inset: 0; pointer-events: none; z-index: 5;
+        position: fixed; inset: 0; z-index: 5; pointer-events: none;
         padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
       }
       #crosshair {
-        position: absolute; top: 50%; left: 50%;
-        width: 20px; height: 20px; transform: translate(-50%, -50%);
+        position: absolute; top: 50%; left: 50%; width: 18px; height: 18px;
+        transform: translate(-50%, -50%); opacity: 0.85;
       }
-      body.mobile #crosshair { opacity: 0.6; }
       #crosshair::before, #crosshair::after {
-        content: ''; position: absolute; background: rgba(255,255,255,0.9);
+        content: ''; position: absolute; background: #fff;
+        box-shadow: 0 0 3px rgba(0, 0, 0, 0.8);
       }
-      #crosshair::before { top: 9px; left: 0; width: 20px; height: 2px; }
-      #crosshair::after { top: 0; left: 9px; width: 2px; height: 20px; }
-      #info {
-        position: absolute; top: max(12px, env(safe-area-inset-top)); left: 12px; color: #fff;
-        font-size: 11px; line-height: 1.5; text-shadow: 1px 1px 2px #000;
-      }
-      #hotbar {
-        position: absolute;
-        bottom: max(100px, calc(80px + env(safe-area-inset-bottom)));
-        left: 50%; transform: translateX(-50%);
-        display: flex; gap: 3px; max-width: 96vw; overflow-x: auto;
-        pointer-events: auto;
-      }
-      .hotbar-slot {
-        flex-shrink: 0;
-        width: 40px; height: 40px; border: 2px solid rgba(255,255,255,0.4);
-        border-radius: 4px; display: flex; align-items: center; justify-content: center;
-        font-size: 10px; color: #fff; text-shadow: 1px 1px 2px #000;
-      }
-      .hotbar-slot.selected { border-color: #fff; box-shadow: 0 0 8px rgba(255,255,255,0.5); }
+      #crosshair::before { top: 8px; left: 0; width: 18px; height: 2px; }
+      #crosshair::after { top: 0; left: 8px; width: 2px; height: 18px; }
 
-      /* Mobile touch controls */
-      #mobile-controls {
-        position: fixed; inset: 0; z-index: 6; pointer-events: none;
+      #stats {
+        position: absolute; top: max(14px, env(safe-area-inset-top)); left: 14px;
+        font-size: 12px; line-height: 1.45; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
       }
-      #mobile-controls.hidden { display: none; }
+      #score-line { font-size: 20px; font-weight: 800; display: flex; align-items: baseline; gap: 6px; }
+      #score { color: #fde68a; }
+      .star-glyph { color: #fbbf24; font-size: 20px; }
+      #score-line.pop { animation: pop 0.35s ease; }
+      @keyframes pop {
+        0% { transform: scale(1); } 40% { transform: scale(1.22); } 100% { transform: scale(1); }
+      }
+      #timer-line { font-variant-numeric: tabular-nums; color: #e2e8f0; font-size: 13px; opacity: 0.85; }
+      #best-line { font-size: 11px; color: #94a3b8; }
+      #debug {
+        margin-top: 6px; font-size: 10.5px; color: #94a3b8;
+        font-family: ui-monospace, monospace; white-space: pre;
+      }
+
+      #toasts {
+        position: absolute; left: 50%; bottom: 34%;
+        transform: translateX(-50%); display: flex; flex-direction: column;
+        align-items: center; gap: 6px; pointer-events: none;
+      }
+      .toast {
+        padding: 8px 16px; border-radius: 999px;
+        background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(148, 163, 184, 0.25);
+        font-size: 0.86rem; font-weight: 600; color: #f1f5f9;
+        animation: toastIn 0.22s ease, toastOut 0.4s ease 1.5s forwards;
+        white-space: nowrap; backdrop-filter: blur(4px);
+      }
+      .toast.gold { border-color: rgba(251, 191, 36, 0.7); color: #fde68a; }
+      .toast.green { border-color: rgba(74, 222, 128, 0.6); color: #bbf7d0; }
+      .toast.boom { border-color: rgba(248, 113, 113, 0.7); color: #fecaca; }
+      @keyframes toastIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+      @keyframes toastOut { to { opacity: 0; transform: translateY(-8px); } }
+
+      #hotbar {
+        position: absolute; bottom: max(16px, env(safe-area-inset-bottom));
+        left: 50%; transform: translateX(-50%);
+        display: flex; gap: 4px; max-width: 96vw; overflow-x: auto;
+        padding: 6px; border-radius: 14px;
+        background: rgba(15, 23, 42, 0.55);
+        border: 1px solid rgba(148, 163, 184, 0.16);
+        pointer-events: auto; scrollbar-width: none;
+      }
+      #hotbar::-webkit-scrollbar { display: none; }
+      .slot {
+        position: relative; flex-shrink: 0;
+        width: 44px; height: 44px; border-radius: 9px;
+        border: 2px solid rgba(148, 163, 184, 0.25);
+        background-size: cover; image-rendering: pixelated;
+        transition: transform 0.1s ease, border-color 0.1s ease;
+      }
+      .slot.selected {
+        border-color: #fff; transform: translateY(-6px) scale(1.08);
+        box-shadow: 0 0 12px rgba(255, 255, 255, 0.45);
+      }
+      .slot .num {
+        position: absolute; right: 2px; bottom: 0;
+        font-size: 9px; font-weight: 700; color: rgba(255, 255, 255, 0.8);
+        text-shadow: 0 1px 2px #000;
+      }
+      body.mobile .slot { width: 40px; height: 40px; }
+      body.mobile #hotbar {
+        bottom: max(130px, calc(118px + env(safe-area-inset-bottom)));
+        max-width: 94vw; padding: 5px;
+      }
+
+      #hintbar {
+        position: absolute; right: 14px; top: max(14px, env(safe-area-inset-top));
+        font-size: 10.5px; color: rgba(226, 232, 240, 0.55); text-align: right;
+        line-height: 1.6; text-shadow: 0 1px 2px #000;
+      }
+      #net-badge {
+        position: absolute; right: 14px; bottom: max(14px, env(safe-area-inset-bottom));
+        font-size: 10px; color: rgba(226, 232, 240, 0.45);
+      }
+
+      /* ---------- Mobile controls ---------- */
+      #mobile-controls { position: fixed; inset: 0; z-index: 6; pointer-events: none; }
       #joystick {
-        position: absolute;
-        left: max(16px, env(safe-area-inset-left));
-        bottom: max(16px, env(safe-area-inset-bottom));
-        width: 120px; height: 120px;
-        border-radius: 50%;
-        background: rgba(255,255,255,0.12);
-        border: 2px solid rgba(255,255,255,0.25);
-        pointer-events: auto;
-        touch-action: none;
+        position: absolute; left: max(12px, env(safe-area-inset-left));
+        bottom: max(12px, env(safe-area-inset-bottom));
+        width: 108px; height: 108px; border-radius: 50%;
+        background: rgba(255, 255, 255, 0.1);
+        border: 2px solid rgba(255, 255, 255, 0.22);
+        pointer-events: auto; touch-action: none;
       }
       #joystick-stick {
         position: absolute; top: 50%; left: 50%;
-        width: 48px; height: 48px; margin: -24px 0 0 -24px;
-        border-radius: 50%;
-        background: rgba(255,255,255,0.45);
-        transform: translate(-50%, -50%);
-        pointer-events: none;
+        width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%;
+        background: rgba(255, 255, 255, 0.45); pointer-events: none;
+        transform: translate(0, 0);
       }
       #action-buttons {
-        position: absolute;
-        right: max(12px, env(safe-area-inset-right));
-        bottom: max(120px, calc(100px + env(safe-area-inset-bottom)));
-        display: flex; flex-direction: column; gap: 8px;
+        position: absolute; right: max(12px, env(safe-area-inset-right));
+        bottom: max(206px, calc(180px + env(safe-area-inset-bottom)));
+        display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
         pointer-events: auto;
       }
       .action-btn {
-        min-width: 64px; padding: 10px 14px;
-        border: none; border-radius: 8px;
-        font-size: 13px; font-weight: 600;
-        color: #fff; text-shadow: 0 1px 2px rgba(0,0,0,0.4);
-        touch-action: manipulation;
+        min-width: 72px; padding: 12px 14px; border-radius: 12px;
+        font-size: 13px; font-weight: 700; color: #fff;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
       }
-      #btn-break { background: rgba(239, 68, 68, 0.85); }
-      #btn-place { background: rgba(34, 197, 94, 0.85); }
-      #btn-jump { background: rgba(59, 130, 246, 0.85); }
-      #look-hint {
-        position: absolute;
-        right: 12px; top: 50%;
-        transform: translateY(-50%);
-        color: rgba(255,255,255,0.35);
-        font-size: 11px;
-        writing-mode: vertical-rl;
-        pointer-events: none;
+      #btn-break { background: rgba(239, 68, 68, 0.9); }
+      #btn-place { background: rgba(34, 197, 94, 0.9); }
+      #btn-jump { background: rgba(59, 130, 246, 0.9); }
+      #btn-fly { background: rgba(168, 85, 247, 0.9); }
+      #btn-menu {
+        position: absolute; top: max(14px, env(safe-area-inset-top)); right: 14px;
+        width: 40px; height: 40px; border-radius: 10px; padding: 0;
+        background: rgba(15, 23, 42, 0.6); color: #e2e8f0; font-size: 16px;
+        pointer-events: auto; z-index: 7;
+      }
+      #btn-fly.active { outline: 2px solid #fff; }
+
+      @media (max-width: 520px) {
+        .keys { font-size: 0.72rem; }
+        #hintbar { display: none; }
       }
     </style>
   </head>
   <body>
-    <div id="overlay">
-      <h1>Rafter Voxel Sandbox</h1>
-      <p id="overlay-hint">点击开始 · WASD 移动 · 空格跳跃 · 左键破坏 · 右键放置 · 1-9 选方块</p>
-      <button id="start-btn">进入游戏</button>
+    <!-- ============ Start ============ -->
+    <div id="screen-start" class="screen">
+      <div class="panel">
+        <h1>CRAFT</h1>
+        <p class="sub">
+          Collect the glow-stars. Build anything. Blow things up.
+        </p>
+        <div class="seed-row">
+          <label for="seed-input">Seed</label>
+          <input id="seed-input" type="text" inputmode="numeric" autocomplete="off" placeholder="42" />
+        </div>
+        <button id="btn-play" class="primary">Play</button>
+        <button id="btn-new" class="ghost">Start a brand new world</button>
+        <div id="start-note" class="note"></div>
+        <div class="keys">
+          <span><b>WASD</b> move</span>
+          <span><b>Space</b> jump / fly up</span>
+          <span><b>Shift</b> sprint</span>
+          <span><b>F</b> fly mode</span>
+          <span><b>Left click</b> break</span>
+          <span><b>Right click</b> place</span>
+          <span><b>1–9 / wheel</b> pick block</span>
+          <span><b>Ctrl+Z</b> undo</span>
+          <span><b>P</b> photo</span>
+          <span><b>H</b> help</span>
+          <span><b>M</b> mute</span>
+          <span><b>F3</b> debug</span>
+        </div>
+      </div>
     </div>
+
+    <!-- ============ Pause ============ -->
+    <div id="screen-pause" class="screen dim hidden">
+      <div class="panel">
+        <h2>Paused</h2>
+        <button id="btn-resume" class="primary">Resume</button>
+        <button id="btn-help" class="ghost">Controls &amp; tips</button>
+        <button id="btn-quit" class="ghost">Back to menu</button>
+      </div>
+    </div>
+
+    <!-- ============ Help ============ -->
+    <div id="screen-help" class="screen dim hidden">
+      <div class="panel">
+        <h2>How to play</h2>
+        <p class="sub">
+          Find the 10 golden stars scattered around the world — walk into one to grab it.
+          The timer stops when you collect them all. Then build, dig, and blow stuff up.
+        </p>
+        <div class="keys">
+          <span><b>WASD</b> walk</span>
+          <span><b>Shift</b> sprint</span>
+          <span><b>Space</b> jump</span>
+          <span><b>F</b> toggle fly</span>
+          <span><b>Space / Shift</b> up / down (flying)</span>
+          <span><b>Left click</b> break block</span>
+          <span><b>Right click</b> place block</span>
+          <span><b>1–9</b> or mouse wheel — pick block</span>
+          <span><b>Ctrl+Z</b> undo last edit</span>
+          <span><b>P</b> photo mode (saves a PNG)</span>
+          <span><b>M</b> mute</span>
+          <span><b>Esc</b> pause</span>
+        </div>
+        <p class="sub" style="margin-top: 18px; margin-bottom: 0;">
+          Red <b>TNT</b> blocks explode when you break them. Chain reaction? Yes.
+        </p>
+        <button id="btn-close-help" class="ghost">Back</button>
+      </div>
+    </div>
+
+    <!-- ============ HUD ============ -->
     <div id="hud" class="hidden">
       <div id="crosshair"></div>
-      <div id="info"></div>
+      <div id="stats">
+        <div id="score-line"><span id="score">0/10</span><span class="star-glyph">★</span></div>
+        <div id="timer-line">00:00</div>
+        <div id="best-line"></div>
+        <div id="debug" class="hidden"></div>
+      </div>
+      <div id="toasts"></div>
       <div id="hotbar"></div>
+      <div id="hintbar">F fly · P photo · M mute · H help</div>
+      <button id="btn-menu" class="hidden" type="button">☰</button>
     </div>
+
     <div id="mobile-controls" class="hidden">
       <div id="joystick"><div id="joystick-stick"></div></div>
       <div id="action-buttons">
-        <button type="button" class="action-btn" id="btn-break">Break</button>
-        <button type="button" class="action-btn" id="btn-place">Place</button>
+        <button type="button" class="action-btn hidden" id="btn-down">Down</button>
         <button type="button" class="action-btn" id="btn-jump">Jump</button>
+        <button type="button" class="action-btn" id="btn-fly">Fly</button>
+        <button type="button" class="action-btn" id="btn-place">Place</button>
+        <button type="button" class="action-btn" id="btn-break">Break</button>
       </div>
-      <div id="look-hint">Drag to look →</div>
     </div>
+
     <canvas id="game"></canvas>
     <script type="module" src="./src/main.ts"></script>
   </body>

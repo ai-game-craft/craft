@@ -1,18 +1,46 @@
-# Rafter Voxel Sandbox
+# CRAFT — Voxel Sandbox
 
-Browser-based voxel sandbox game built with TypeScript, Three.js, and Vite.
+A browser voxel sandbox in the spirit of Minecraft: TypeScript + Three.js + Vite.
+No image files, no audio files, no backend — every texture and every sound effect is
+generated in code, so the whole game is one small bundle.
 
-> Demo for [KimiC](https://github.com/KimiC) — play at http://craft.rafter.com.cn/
+> Originally a demo for [KimiC](https://github.com/KimiC) — play at http://craft.rafter.com.cn/
 
-## Features (MVP)
-- First-person movement (WASD + jump)
-- Pointer Lock mouse look
-- Procedural terrain (Simplex noise)
-- Chunk system with face culling
-- Place/break blocks (left/right click)
-- 9 placeable block types
-- IndexedDB auto-save every 30 seconds
-- Multiplayer-ready protocol stubs
+## What you can do
+
+**Collect the stars.** Ten glowing stars are scattered around the world each round.
+Walk into one to grab it. The HUD keeps a timer and your best run; clear all ten and
+a fresh ring spawns further out.
+
+**Build something.** 19 block types, instant creative-style placing, fly mode and Ctrl+Z.
+
+**Break something.** TNT explodes, and explosions set off other TNT. Chain reactions
+are very much encouraged.
+
+**Explore.** Hills, beaches, oceans, snow caps and mountains are generated from a seed
+you can type on the start screen. Underground there are caves and coal / iron / gold veins.
+
+**Play with the world.** A full day-night cycle (sunrise, stars, moon, drifting clouds),
+procedural sound effects, and a photo mode that saves a PNG.
+
+## Features
+
+- 19 blocks: grass, dirt, stone, cobble, planks, logs, leaves, sand, gravel, glass,
+  brick, ice, snow, glowstone, coal/iron/gold ore, obsidian and TNT
+- Terrain from layered simplex noise: rolling hills, mountains, ocean basins,
+  beaches and a snow line
+- Caves carved from two intersecting noise fields (winding tunnels, not hollow blobs)
+  plus depth-based ore veins
+- Per-chunk face-culled meshing with a mipmapped, procedurally painted texture atlas
+- Day/night cycle driving sky colour, fog, sun/moon sprites, stars and lighting
+- Crosshair block outline, hold-to-repeat breaking and placing
+- Sprint, jump buffering, coyote time, swimming, and a fly mode
+- WebAudio sound effects synthesised at runtime (break, place, jump, splash, collect,
+  fuse, explosion, win jingle) with an M mute toggle
+- Voxel debris particles, explosion flash and camera shake
+- Star-collecting challenge loop with timer, best time and round counter
+- Undo, photo mode, F3 debug overlay, seed input and new-world button
+- IndexedDB autosave (chunks stored as typed arrays)
 
 ## Controls
 
@@ -20,12 +48,20 @@ Browser-based voxel sandbox game built with TypeScript, Three.js, and Vite.
 
 | Key | Action |
 |-----|--------|
-| WASD | Move |
-| Space | Jump |
+| W A S D / arrow keys | Move |
 | Mouse | Look |
-| Left click | Break block |
-| Right click | Place block |
-| 1-9 | Select block type |
+| Space | Jump · fly up |
+| Shift | Sprint · fly down |
+| F | Toggle fly mode |
+| Left click | Break block (hold to repeat) |
+| Right click | Place block (hold to repeat) |
+| 1–9, mouse wheel, or click a slot | Select block |
+| Ctrl+Z (⌘Z on Mac) | Undo last edit |
+| P | Save a screenshot as PNG |
+| M | Mute / unmute |
+| H | Help |
+| F3 | Debug overlay (FPS, position, nearest star) |
+| Esc | Pause |
 
 ### Mobile (phone / tablet)
 
@@ -33,12 +69,33 @@ Browser-based voxel sandbox game built with TypeScript, Three.js, and Vite.
 |---------|--------|
 | Left joystick | Move |
 | Drag right side of screen | Look around |
-| Break / Place / Jump buttons | Actions |
+| Break / Place / Jump / Fly buttons | Actions (Fly shows a Down button when active) |
 | Tap hotbar slot | Select block |
+| ☰ button | Pause menu |
 
-Play on phone: http://craft.rafter.com.cn/
+## Tuning it for a class
 
-## Getting started for KimiC
+Almost everything that changes how the game *feels* lives in one file:
+[`src/config.ts`](src/config.ts) — gravity, walk/sprint/fly speed, jump height, day
+length, star count, world seed, render distance and so on. Change a number, save, and
+the dev server hot-reloads. Great first exercise: "make the moon's gravity real" or
+"how fast is too fast?".
+
+The game object is exposed on `window.game`, so students can poke at it from the browser
+console:
+
+```js
+game.player.flying = true          // start flying
+game.player.position.y += 20       // teleport up
+game.world.getBlock(10, 40, 10)    // read a block id
+game.sky.time = 22                 // jump to night
+game.audio.toggleMute()
+```
+
+See [IDEAS.md](IDEAS.md) for a prioritised list of ways to make it more playful,
+and [CLASSROOM.md](CLASSROOM.md) for a lesson plan and project briefs.
+
+## Getting started
 
 1. Accept the GitHub collaborator invite (email from GitHub)
 2. Install [Git](https://git-scm.com/) and [Node.js](https://nodejs.org/)
@@ -169,13 +226,21 @@ Verify: `curl -I https://craft.rafter.com.cn/`
 
 ```
 src/
-├── engine/     Game loop, input, camera
-├── world/      Chunks, terrain, raycast
-├── render/     Three.js renderer, mesh builder
-├── player/     Physics & collision
-├── save/       IndexedDB persistence
-└── net/        Protocol stubs for future multiplayer
+├── config.ts        All the tunable numbers (start here)
+├── engine/          Game loop, input, touch controls, first-person camera
+├── world/           Chunks, terrain + cave/ore generation, block registry, raycast
+├── render/          Renderer, chunk mesher, procedural texture atlas, sky, particles
+├── player/          Movement, collision, swimming, flying
+├── game/            StarField — the collect-the-stars challenge loop
+├── audio/           WebAudio synthesiser (no sound files)
+├── ui/              DOM HUD, toasts, menus
+├── save/            IndexedDB persistence
+└── net/             Protocol stubs for future multiplayer
 ```
+
+Rendering pipeline in one line: voxel data lives in `Uint8Array` chunks → `ChunkMesh`
+walks each chunk and emits only the faces that can be seen → one `Mesh` per chunk,
+all sharing a single material and a single 128×128 procedural texture atlas.
 
 ## License
 
